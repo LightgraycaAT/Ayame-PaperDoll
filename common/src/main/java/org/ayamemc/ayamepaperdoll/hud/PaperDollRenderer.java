@@ -293,7 +293,7 @@ public class PaperDollRenderer {
         }
 
         // different renderState, offset, pose; same rotation, pos, size
-        ((GuiGraphicsExtractorInterface)graphics).addPicturesInPictureState(
+        ((GuiGraphicsExtractorInterface)graphics).ayame_PaperDoll$addPicturesInPictureState(
                 new ModRenderState(
                         target,
                         offset,
