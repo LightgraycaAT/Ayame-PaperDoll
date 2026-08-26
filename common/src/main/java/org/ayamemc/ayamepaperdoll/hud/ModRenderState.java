@@ -39,6 +39,8 @@ public record ModRenderState(
         int y0,
         int x1,
         int y1,
+        int offsetX,
+        int offsetY,
         float scale,
         float lightDegree,
         @Nullable ScreenRectangle scissorArea,
@@ -52,8 +54,10 @@ public record ModRenderState(
             @Nullable Vector3f translation2,
             Quaternionf rotation2,
             @Nullable Quaternionf overrideCameraAngle,
-            int x,
-            int y,
+            int offsetX,
+            int offsetY,
+            int width,
+            int height,
             float scale,
             float lightDegree,
             @Nullable ScreenRectangle scissorArea
@@ -66,14 +70,11 @@ public record ModRenderState(
                 translation2,
                 rotation2,
                 overrideCameraAngle,
-                x,
-                y,
-                x,
-                y,
+                0,0,width,height,offsetX,offsetY,
                 scale,
                 lightDegree,
                 scissorArea,
-                PictureInPictureRenderState.getBounds(x, y, x, y, scissorArea)
+                PictureInPictureRenderState.getBounds(0,0,width,height, scissorArea)
         );
     }
 }

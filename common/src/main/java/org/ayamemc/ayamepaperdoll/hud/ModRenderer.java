@@ -20,20 +20,18 @@
 
 package org.ayamemc.ayamepaperdoll.hud;
 
-import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.TextureSetup;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
-import net.minecraft.client.renderer.ProjectionMatrixBuffer;
-import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
@@ -43,14 +41,15 @@ import org.joml.Matrix4fStack;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.util.Optional;
+import java.util.OptionalDouble;
+
 import static org.ayamemc.ayamepaperdoll.AyamePaperDoll.CONFIGS;
 
 public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
-    private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("PIP - " + this.getClass().getSimpleName());
     private final EntityRenderDispatcher entityRenderDispatcher;
-    private final Projection projection = new Projection();
     private final SubmitNodeStorage submitNodeStorage = new SubmitNodeStorage();
-    private int width, height;
+    private int width, height, guiScale;
 
     public ModRenderer(EntityRenderDispatcher entityRenderDispatcher) {
         this.entityRenderDispatcher = entityRenderDispatcher;
@@ -74,12 +73,12 @@ public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
             poseStack.pushPose();
             Vector3f vector3f = renderState.translation2();
             assert vector3f != null;
-            poseStack.mulPose(renderState.rotation2());
+            poseStack.rotate(renderState.rotation2());
             this.entityRenderDispatcher.submit(renderState.vehicleRenderState(), camerarenderstate, vector3f.x, vector3f.y, vector3f.z, poseStack, submitNodeCollector);
             poseStack.popPose();
         }
         Vector3f vector3f = renderState.translation();
-        poseStack.mulPose(renderState.rotation());
+        poseStack.rotate(renderState.rotation());
         this.entityRenderDispatcher.submit(renderState.renderState(), camerarenderstate, vector3f.x, vector3f.y, vector3f.z, poseStack, submitNodeCollector);
     }
 
@@ -89,34 +88,36 @@ public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
     }
 
     public void prepare(ModRenderState renderState, GuiRenderState guiRenderState, FeatureRenderDispatcher featureRenderDispatcher, int guiScale) {
-        int width = Minecraft.getInstance().getWindow().getGuiScaledWidth();
-        int height = Minecraft.getInstance().getWindow().getGuiScaledHeight();
-        int raw_width = Minecraft.getInstance().getWindow().getWidth();
-        int raw_height = Minecraft.getInstance().getWindow().getHeight();
-        boolean needsAResize = this.width != width || this.height != height;
+        int width = renderState.x1() - renderState.x0();
+		int height = renderState.y1() - renderState.y0();
+        boolean needsAResize = this.width != width || this.height != height || this.guiScale != guiScale;
         if (needsAResize) {
             this.width = width;
             this.height = height;
+            this.guiScale = guiScale;
         }
-        this.prepareTexturesAndProjection(true, raw_width, raw_height);
-        this.projection.setupOrtho(-1000.0F, 1000.0F, width, height, true);
-        RenderSystem.setProjectionMatrix(this.projectionMatrixBuffer.getBuffer(this.projection), ProjectionType.ORTHOGRAPHIC);
-        RenderSystem.outputColorTextureOverride = this.textureView;
-        RenderSystem.outputDepthTextureOverride = this.depthTextureView;
+        this.prepareTexturesAndProjection(needsAResize, width * guiScale, height * guiScale);
         Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
         modelViewStack.pushMatrix();
         modelViewStack.rotateY(renderState.lightDegree());
         PoseStack posestack = new PoseStack();
-        float x0 =CONFIGS.mirrored.getValue()? width - renderState.x0() : renderState.x0();
-        posestack.mulPose(Axis.YP.rotation(-renderState.lightDegree()));
-        posestack.translate(x0, renderState.y0(), 0.0F);
-        float f =  renderState.scale();
+        posestack.rotate(Axis.YP.rotation(-renderState.lightDegree()));
+        posestack.scale(guiScale, guiScale, guiScale);
+        float offsetX = CONFIGS.mirrored.getValue()? width - renderState.offsetX() : renderState.offsetX();
+        posestack.translate(offsetX, renderState.offsetY(), 0.0F);
+        float f = renderState.scale();
         posestack.scale(f, f, -f);
         this.renderToTexture(renderState, posestack, this.submitNodeStorage);
-        featureRenderDispatcher.renderAllFeatures(this.submitNodeStorage);
+
+        try (
+                FeatureRenderDispatcher.PreparedFrame frame = featureRenderDispatcher.prepareFrame(this.submitNodeStorage);
+                RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Picture in picture", this.textureView, Optional.empty(), this.depthTextureView, OptionalDouble.empty());
+        ) {
+            RenderSystem.bindDefaultUniforms(renderPass);
+            FeatureRenderDispatcher.renderAllFeatures(renderPass, frame);
+        }
+
         modelViewStack.popMatrix();
-        RenderSystem.outputColorTextureOverride = null;
-        RenderSystem.outputDepthTextureOverride = null;
         blitTexture(renderState, guiRenderState);
     }
 
@@ -137,7 +138,10 @@ public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
                                 this.textureView, null, Minecraft.getInstance().gameRenderer.levelLightmap(), RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST), null, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR)
                         ),
                         renderState.pose(),
-                        0,0, width, height,
+                        renderState.x0(),
+				        renderState.y0(),
+				        renderState.x1(),
+				        renderState.y1(),
                         u0,u1,
                         1.0F,
                         0.0F,

@@ -25,11 +25,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.entity.state.BoatRenderState;
+import net.minecraft.client.renderer.entity.state.*;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
-import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -71,8 +70,6 @@ public class PaperDollRenderer {
             new DataBackupEntry<>(e -> e.xRotO, (e, pitch) -> e.xRotO = pitch),
             new DataBackupEntry<>(LivingEntity::getXRot, LivingEntity::setXRot),
 
-            new DataBackupEntry<>(e -> e.attackAnim, (e, prog) -> e.attackAnim = prog),
-            new DataBackupEntry<>(e -> e.oAttackAnim, (e, prog) -> e.oAttackAnim = prog),
             new DataBackupEntry<>(e -> e.hurtTime, (e, time) -> e.hurtTime = time),
             new DataBackupEntry<>(LivingEntity::getRemainingFireTicks, LivingEntity::setRemainingFireTicks),
             new DataBackupEntry<>(e -> e.getSharedFlag(0), (e, flag) -> e.setSharedFlag(0, flag)) // on fire
@@ -248,12 +245,6 @@ public class PaperDollRenderer {
         // 头部俯视角度
         targetEntity.setXRot(targetEntity.xRotO = pitchClamp);
 
-
-        if (!CONFIGS.swingHands.getValue()) {
-            targetEntity.attackAnim = 0;
-            targetEntity.oAttackAnim = 0;
-        }
-
         if (!CONFIGS.hurtFlash.getValue()) {
             targetEntity.hurtTime = 0;
         }
@@ -302,7 +293,7 @@ public class PaperDollRenderer {
                         offset2,
                         pose,
                         new Quaternionf(configRot).conjugate(),
-                        (int) posX, (int) posY,(float) size, (float) Math.toRadians(lightDegree),null
+                        (int) posX, (int) posY, scaledWidth, scaledHeight, (float) size, (float) Math.toRadians(lightDegree), null
                 )
         );
     }
@@ -315,6 +306,30 @@ public class PaperDollRenderer {
         state.lightCoords = getLight(targetEntity, a);
         state.shadowPieces.clear();
         state.outlineColor = 0;
+
+        /*if (!CONFIGS.hurtFlash.getValue() && (state instanceof LivingEntityRenderState livingState)) {
+            livingState.hasRedOverlay = false;
+        }
+
+        if (CONFIGS.poseOffsetMethod.getValue() == Configs.PoseOffsetMethod.FORCE_STANDING) {
+            if (state instanceof AvatarRenderState avatarState) {
+                avatarState.fallFlyingTimeInTicks = a;
+            }
+            if (state instanceof HumanoidRenderState humanoidState) {
+                humanoidState.swimAmount = 0;
+                humanoidState.isFallFlying = false;
+            }
+            if (state instanceof LivingEntityRenderState livingState) {
+                livingState.pose = Pose.STANDING;
+                livingState.passengerOffset = null;
+            }
+        }*/
+
+        if (state instanceof ArmedEntityRenderState armedState) {
+            if (!CONFIGS.swingHands.getValue()) {
+                armedState.swingAnimation = 0;
+            }
+        }
         return state;
     }
 }
