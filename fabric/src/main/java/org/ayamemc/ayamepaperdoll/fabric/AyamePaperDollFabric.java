@@ -26,6 +26,7 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.client.renderer.RenderPipelines;
 import org.ayamemc.ayamepaperdoll.AyamePaperDoll;
 import org.ayamemc.ayamepaperdoll.handler.EventHandler;
 import org.ayamemc.ayamepaperdoll.hud.ModRenderer;
@@ -51,5 +52,6 @@ public class AyamePaperDollFabric implements ClientModInitializer {
         PictureInPictureRendererRegistry.register(context -> new ModRenderer(
                 context.minecraft().getEntityRenderDispatcher()
         ));
+        RenderPipelines.register(AyamePaperDoll.MOD_PIPELINE);
     }
 }
