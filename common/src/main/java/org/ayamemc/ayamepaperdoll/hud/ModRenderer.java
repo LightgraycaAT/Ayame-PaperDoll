@@ -29,13 +29,14 @@ import com.mojang.renderpearl.api.textures.FilterMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.TextureSetup;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.state.gui.BlitRenderState;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import org.ayamemc.ayamepaperdoll.AyamePaperDoll;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4fStack;
 import org.joml.Quaternionf;
@@ -43,8 +44,6 @@ import org.joml.Vector3f;
 
 import java.util.Optional;
 import java.util.OptionalDouble;
-
-import static org.ayamemc.ayamepaperdoll.AyamePaperDoll.CONFIGS;
 
 public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
     private final EntityRenderDispatcher entityRenderDispatcher;
@@ -103,19 +102,25 @@ public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
         PoseStack posestack = new PoseStack();
         posestack.rotate(Axis.YP.rotation(-renderState.lightDegree()));
         posestack.scale(guiScale, guiScale, guiScale);
-        float offsetX = CONFIGS.mirrored.getValue()? width - renderState.offsetX() : renderState.offsetX();
+        float offsetX = renderState.mirror() ? width - renderState.offsetX() : renderState.offsetX();
         posestack.translate(offsetX, renderState.offsetY(), 0.0F);
         float f = renderState.scale();
         posestack.scale(f, f, -f);
         this.renderToTexture(renderState, posestack, this.submitNodeStorage);
 
+        var gameRenderer = Minecraft.getInstance().gameRenderer;
+        boolean temp = gameRenderer.useUiLightmap;
+        gameRenderer.useUiLightmap = false;
+
         try (
-                FeatureRenderDispatcher.PreparedFrame frame = featureRenderDispatcher.prepareFrame(this.submitNodeStorage);
-                RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Picture in picture", this.textureView, Optional.empty(), this.depthTextureView, OptionalDouble.empty());
+            FeatureRenderDispatcher.PreparedFrame frame = featureRenderDispatcher.prepareFrame(this.submitNodeStorage);
+            RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Picture in picture", this.textureView, Optional.empty(), this.depthTextureView, OptionalDouble.empty());
         ) {
             RenderSystem.bindDefaultUniforms(renderPass);
             FeatureRenderDispatcher.renderAllFeatures(renderPass, frame);
         }
+
+        gameRenderer.useUiLightmap = temp;
 
         modelViewStack.popMatrix();
         blitTexture(renderState, guiRenderState);
@@ -124,31 +129,30 @@ public class ModRenderer extends PictureInPictureRenderer<ModRenderState> {
     @Override
     protected void blitTexture(final ModRenderState renderState, final GuiRenderState guiRenderState) {
         float u0,u1;
-        if(CONFIGS.mirrored.getValue()){
+        if (renderState.mirror()){
             u0 = 1.0f;
             u1 = 0.0f;
         } else {
             u0 = 0.0f;
             u1 = 1.0f;
         }
-        guiRenderState.addGlyphToCurrentLayer(
-                new ExBlitRenderState(
-                        AyamePaperDoll.MOD_PIPELINE,
-                        new TextureSetup(
-                                this.textureView, null, Minecraft.getInstance().gameRenderer.levelLightmap(), RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST), null, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR)
-                        ),
-                        renderState.pose(),
-                        renderState.x0(),
-				        renderState.y0(),
-				        renderState.x1(),
-				        renderState.y1(),
-                        u0,u1,
-                        1.0F,
-                        0.0F,
-                        renderState.renderState().lightCoords,
-                        renderState.scissorArea(),
-                        null
-                )
-        );
+        guiRenderState.addBlitToCurrentLayer(
+			new BlitRenderState(
+				RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
+				TextureSetup.singleTexture(this.textureView, RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)),
+				renderState.pose(),
+				renderState.x0(),
+				renderState.y0(),
+				renderState.x1(),
+				renderState.y1(),
+				u0,
+				u1,
+				1.0F,
+				0.0F,
+				-1,
+				renderState.scissorArea(),
+				null
+			)
+		);
     }
 }

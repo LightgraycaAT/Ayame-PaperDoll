@@ -52,6 +52,5 @@ public class AyamePaperDollFabric implements ClientModInitializer {
         PictureInPictureRendererRegistry.register(context -> new ModRenderer(
                 context.minecraft().getEntityRenderDispatcher()
         ));
-        RenderPipelines.register(AyamePaperDoll.MOD_PIPELINE);
     }
 }
