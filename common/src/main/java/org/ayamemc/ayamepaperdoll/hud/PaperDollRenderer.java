@@ -47,8 +47,9 @@ import org.ayamemc.ayamepaperdoll.hud.DataBackup.DataBackupEntry;
 import org.joml.Matrix4fStack;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL11C;
 
-import java.awt.geom.Rectangle2D;
 import java.util.List;
 
 import static org.ayamemc.ayamepaperdoll.AyamePaperDoll.CONFIGS;
@@ -82,7 +83,6 @@ public class PaperDollRenderer {
     );
     private static final PaperDollRenderer instance = new PaperDollRenderer();
     private final Minecraft minecraft = Minecraft.getInstance();
-    private Rectangle2D.Double currentRenderBounds;
 
     private PaperDollRenderer() {
     }
@@ -134,6 +134,15 @@ public class PaperDollRenderer {
             }
         }
 
+        // override states
+        if (CONFIGS.mirrored.getValue()) GL11.glCullFace(GL11C.GL_FRONT);
+        EntityRenderDispatcher entityRenderDispatcher = minecraft.getEntityRenderDispatcher();
+        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+        boolean renderHitbox = entityRenderDispatcher.shouldRenderHitBoxes();
+        entityRenderDispatcher.setRenderHitBoxes(false);
+        entityRenderDispatcher.setRenderShadow(false);
+        Lighting.setupForEntityInInventory();
+
         int scaledWidth = minecraft.getWindow().getGuiScaledWidth();
         int scaledHeight = minecraft.getWindow().getGuiScaledHeight();
         Configs.PoseOffsetMethod poseOffsetMethod = CONFIGS.poseOffsetMethod.getValue();
@@ -166,7 +175,7 @@ public class PaperDollRenderer {
                     vehicle.getPosition(partialTicks).subtract(targetEntity.getPosition(partialTicks))
                             .yRot((float) Math.toRadians(yawLerped)).toVector3f(), // undo the rotation
                     CONFIGS.lightDegree.getValue(),
-                    partialTicks, guiGraphics);
+                    partialTicks, bufferSource);
         }
 
 
@@ -177,11 +186,19 @@ public class PaperDollRenderer {
                 CONFIGS.mirrored.getValue(),
                 new Vector3f(0, (float) getPoseOffsetY(targetEntity, partialTicks, poseOffsetMethod), 0),
                 CONFIGS.lightDegree.getValue(),
-                partialTicks, guiGraphics);
+                partialTicks, bufferSource);
 
         if (vehicleBackup != null) vehicleBackup.restore();
 
         backup.restore();
+
+        // render to texture and restore states
+        bufferSource.endBatch();
+
+        if (CONFIGS.mirrored.getValue()) GL11.glCullFace(GL11C.GL_BACK);
+        entityRenderDispatcher.setRenderShadow(true);
+        entityRenderDispatcher.setRenderHitBoxes(renderHitbox);
+        Lighting.setupFor3DItems();
     }
 
     private double getPoseOffsetY(LivingEntity targetEntity, float partialTicks, Configs.PoseOffsetMethod poseOffsetMethod) {
@@ -274,7 +291,7 @@ public class PaperDollRenderer {
 
     @SuppressWarnings("deprecation")
     private void performRendering(Entity targetEntity, double posX, double posY, double size, boolean mirror,
-                                  Vector3f offset, double lightDegree, float partialTicks, GuiGraphics guiGraphics) {
+                                  Vector3f offset, double lightDegree, float partialTicks, MultiBufferSource bufferSource) {
         EntityRenderDispatcher entityRenderDispatcher = minecraft.getEntityRenderDispatcher();
 
         Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
@@ -313,15 +330,9 @@ public class PaperDollRenderer {
             poseStack.mulPose(new Quaternionf().rotateY((float) Math.toRadians(180)));
         }
 
-        Lighting.setupForEntityInInventory();
         xyzRot.conjugate();
 
         entityRenderDispatcher.overrideCameraOrientation(xyzRot);
-        boolean renderHitbox = entityRenderDispatcher.shouldRenderHitBoxes();
-        entityRenderDispatcher.setRenderHitBoxes(false);
-        entityRenderDispatcher.setRenderShadow(false);
-        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
-
 
         final float rotationYaw = ((rotationMode == RotationMode.UNLOCK) /*|| (rotationMode == RotationMode.SMOOTH_LOCK)*/) ? targetEntity.getYRot() : 0.0F;
 
@@ -330,16 +341,7 @@ public class PaperDollRenderer {
                 () -> entityRenderDispatcher.render(targetEntity, offset.x, offset.y, offset.z, rotationYaw, partialTicks, poseStack, bufferSource, getLight(targetEntity, partialTicks))
         );
 
-        // 事实证明1.21.3+只需一直禁用剔除，镜像也不会导致什么问题
-        bufferSource.ayame_PaperDoll$setForceDisableCulling(true);
-        bufferSource.endBatch();
-
-        // do not need to restore this value in fact
-        entityRenderDispatcher.setRenderShadow(true);
-        entityRenderDispatcher.setRenderHitBoxes(renderHitbox);
-
         modelViewStack.popMatrix();
         RenderSystem.applyModelViewMatrix();
-        Lighting.setupFor3DItems();
     }
 }
