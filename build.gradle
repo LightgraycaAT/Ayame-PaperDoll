@@ -26,7 +26,7 @@ buildscript {
 plugins {
     id 'dev.architectury.loom' version '1.13-SNAPSHOT' apply false
     id 'architectury-plugin' version '3.4-SNAPSHOT'
-    id 'com.github.johnrengelman.shadow' version '8.1.1' apply false
+    id 'com.gradleup.shadow' version '9.2.2'  apply false
 }
 
 
@@ -81,6 +81,7 @@ subprojects {
     }
 
     jar {
+        duplicatesStrategy DuplicatesStrategy.INCLUDE
         from(rootProject.file('COPYING'))
         from(rootProject.file('COPYING.LESSER'))
         from(rootProject.file('licenses')) {
