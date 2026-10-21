@@ -112,10 +112,6 @@ public class PaperDollRenderer {
 
     }
 
-    // 这会导致织布机渲染问题，不要使用↓
-    // follow convention in LayeredDrawer#renderInternal
-    // guiGraphics.pose().translate(0, 0, 200);
-
     /**
      * Mimics the code in {@link InventoryScreen#extractEntityInInventoryFollowsMouse}
      */
@@ -229,11 +225,11 @@ public class PaperDollRenderer {
         final double headYaw = CONFIGS.headYaw.getValue(), headYawRange = CONFIGS.headYawRange.getValue();
         final double bodyYaw = CONFIGS.bodyYaw.getValue(), bodyYawRange = CONFIGS.bodyYawRange.getValue();
         final double pitch = CONFIGS.pitch.getValue(), pitchRange = CONFIGS.pitchRange.getValue();
-        final float headClamp = (float) Mth.clamp(headLerp, headYaw - headYawRange, headYaw + headYawRange);
+        final float headClamp = (float) Math.clamp(Mth.wrapDegrees(headLerp), headYaw - headYawRange, headYaw + headYawRange);
         final float bodyLerp = Mth.lerp(partialTicks, targetEntity.yBodyRotO, targetEntity.yBodyRot);
         final float diff = headLerp - bodyLerp;
-        final float bodyClamp = (float) Mth.clamp(Mth.wrapDegrees(headClamp - diff), bodyYaw - bodyYawRange, bodyYaw + bodyYawRange);
-        final float pitchClamp = (float) (Mth.clamp(Mth.lerp(partialTicks, targetEntity.xRotO, targetEntity.getXRot()), -pitchRange, pitchRange) + pitch);
+        final float bodyClamp = (float) Math.clamp(Mth.wrapDegrees(headClamp - diff), bodyYaw - bodyYawRange, bodyYaw + bodyYawRange);
+        final float pitchClamp = (float) (Math.clamp(Mth.lerp(partialTicks, targetEntity.xRotO, targetEntity.getXRot()), -pitchRange, pitchRange) + pitch);
         final RotationMode rotationMode = CONFIGS.rotationMode.getValue();
 
         // 头部锁定
@@ -279,7 +275,7 @@ public class PaperDollRenderer {
                 (float) Math.toRadians(CONFIGS.rotationY.getValue()),
                 (float) Math.toRadians(CONFIGS.rotationZ.getValue()));
 
-        pose.mul(configRot).rotateY((float) Math.toRadians(lightDegree + 180));
+        pose.mul(configRot).rotateY((float) Math.PI);
 
         var pose1 = new Quaternionf(pose);
         if(target instanceof BoatRenderState) {
@@ -293,7 +289,7 @@ public class PaperDollRenderer {
         }
 
         // different renderState, offset, pose; same rotation, pos, size
-        ((GuiGraphicsExtractorInterface)graphics).addPicturesInPictureState(
+        ((GuiGraphicsExtractorInterface)graphics).ayame_paperDoll$addPicturesInPictureState(
                 new ModRenderState(
                         target,
                         offset,
@@ -302,7 +298,13 @@ public class PaperDollRenderer {
                         offset2,
                         pose,
                         new Quaternionf(configRot).conjugate(),
-                        (int) posX, (int) posY,(float) size, null
+                        (int) posX,
+                        (int) posY,
+                        scaledWidth,
+                        scaledHeight,
+                        (float) size,
+                        (float) Math.toRadians(lightDegree),
+                        CONFIGS.mirrored.getValue()
                 )
         );
     }
@@ -315,6 +317,11 @@ public class PaperDollRenderer {
         state.lightCoords = getLight(targetEntity, a);
         state.shadowPieces.clear();
         state.outlineColor = 0;
+
+        // disable fire effect and text rendered on entity
+        state.scoreText = null;
+        state.nameTag = null;
+        state.displayFireAnimation = false;
         return state;
     }
 }
